@@ -18,15 +18,15 @@ const tickets = pgTable('tickets', {
   channelId: text('channel_id').notNull().unique(),
   userId: text('user_id').notNull(),
   type: text('type').notNull(),
-  status: text('status').defaultValue('open').notNull(),
+  status: text('status').default('open').notNull(),
   claimedBy: text('claimed_by'),
-  closed: boolean('closed').defaultValue(false).notNull(),
+  closed: boolean('closed').default(false).notNull(),
   closedBy: text('closed_by'),
   closedAt: timestamp('closed_at'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   ticketName: text('ticket_name'),
-  usersAdded: jsonb('users_added').defaultValue([]).notNull(),
-  messages: jsonb('messages').defaultValue([]).notNull()
+  usersAdded: jsonb('users_added').default('[]').notNull(),
+  messages: jsonb('messages').default('[]').notNull()
 });
 
 // Schema for ticket logs
