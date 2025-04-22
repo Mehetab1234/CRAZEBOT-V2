@@ -1,0 +1,29 @@
+# Render.com deployment configuration
+services:
+  # Web service configuration
+  - type: web
+    name: discord-bot
+    env: node
+    plan: starter
+    buildCommand: npm install
+    startCommand: node server.js
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_VERSION
+        value: 18.18.0
+      - key: PORT
+        value: 5000
+      - fromGroup: discord-bot-env
+
+# Environment variable groups for easy management
+envVarGroups:
+  - name: discord-bot-env
+    envVars:
+      - key: DISCORD_TOKEN
+        sync: false
+      - key: CLIENT_ID
+        sync: false
+      - key: GUILD_ID
+        sync: false
+      - key: DATABASE_URL
+        sync: false
