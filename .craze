@@ -39,7 +39,7 @@ args = "npm install && node src/deploy-commands.js && node src/index.js"
 
 [[workflows.workflow]]
 name = "discord-bot"
-author = "agent"
+author = "mehetab"
 
 [workflows.workflow.metadata]
 agentRequireRestartOnSave = false
@@ -53,7 +53,7 @@ args = "npm install && node src/index.js"
 
 [[workflows.workflow]]
 name = "Web Bot"
-author = "agent"
+author = "craftingcrazegamimg"
 
 [workflows.workflow.metadata]
 agentRequireRestartOnSave = false
