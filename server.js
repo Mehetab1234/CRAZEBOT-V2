@@ -12,10 +12,19 @@ app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
+// Add a simple status endpoint
+app.get('/status', (req, res) => {
+  res.json({ 
+    status: 'online',
+    message: 'Discord bot is running',
+    timestamp: new Date().toISOString()
+  });
+});
+
 // Start the server
-app.listen(PORT, () => {
+app.listen(PORT, '0.0.0.0', () => {
   console.log(`Web server running on port ${PORT}`);
-  console.log('Visit http://localhost:5000 to view the page');
+  console.log(`Visit http://localhost:${PORT} to view the page`);
 });
 
 // Import the Discord bot to keep it running

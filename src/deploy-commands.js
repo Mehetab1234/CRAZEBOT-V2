@@ -56,23 +56,31 @@ async function deployCommands() {
     
     let data;
     
-    if (guildId) {
-      // Register commands for a specific guild (faster updates during development)
-      data = await rest.put(
-        Routes.applicationGuildCommands(clientId, guildId),
-        { body: commands },
-      );
-      console.log(`Successfully registered ${data.length} guild commands.`);
-    } else {
-      // Register global commands (can take up to an hour to update)
-      data = await rest.put(
-        Routes.applicationCommands(clientId),
-        { body: commands },
-      );
-      console.log(`Successfully registered ${data.length} global commands.`);
+    // Try guild commands first (if we have a valid guild ID)
+    if (guildId && guildId.match(/^\d+$/)) {
+      try {
+        console.log(`Attempting to register commands for guild ID: ${guildId}`);
+        // Register commands for a specific guild (faster updates during development)
+        data = await rest.put(
+          Routes.applicationGuildCommands(clientId, guildId),
+          { body: commands },
+        );
+        console.log(`Successfully registered ${data.length} guild commands.`);
+        return; // Exit if guild command registration was successful
+      } catch (guildError) {
+        console.warn(`Guild command registration failed: ${guildError.message}`);
+        console.log('Falling back to global command registration...');
+      }
     }
+    
+    // Register global commands if guild-specific registration fails or is not configured
+    data = await rest.put(
+      Routes.applicationCommands(clientId),
+      { body: commands },
+    );
+    console.log(`Successfully registered ${data.length} global commands.`);
   } catch (error) {
-    console.error(error);
+    console.error('Error registering commands:', error);
   }
 }
 
