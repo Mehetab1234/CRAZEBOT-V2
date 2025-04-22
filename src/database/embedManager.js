@@ -1,11 +1,20 @@
-// In-memory embed template management system
+// Database-backed embed template management system
 const { Collection } = require('discord.js');
 const config = require('../config');
+const { db } = require('./db');
+const { embedTemplates, sentEmbeds } = require('./schema/embeds');
+const { eq, and } = require('drizzle-orm');
 
 class EmbedManager {
   constructor() {
+    // Fallback collections for when database is not available
     this.templates = new Collection();
     this.sentEmbeds = new Collection();
+    this.useDatabase = !!db; // Check if database is available
+    
+    if (!this.useDatabase) {
+      console.warn('Database not available. Using in-memory storage for embeds.');
+    }
   }
 
   /**
@@ -16,14 +25,32 @@ class EmbedManager {
    * @param {string} createdBy - The user ID who created the template
    * @returns {Object} The created template
    */
-  createTemplate(guildId, name, embedData, createdBy) {
+  async createTemplate(guildId, name, embedData, createdBy) {
     const template = {
-      id: `${guildId}-${Date.now()}`,
+      guildId: guildId,
       name: name,
       embedData: embedData,
       createdBy: createdBy,
-      createdAt: new Date().toISOString(),
-      guildId: guildId
+      createdAt: new Date(),
+      updatedAt: new Date()
+    };
+    
+    if (this.useDatabase) {
+      try {
+        const [result] = await db.insert(embedTemplates).values(template).returning();
+        return result;
+      } catch (error) {
+        console.error('Error creating template in database:', error);
+        // Fall back to in-memory storage
+      }
+    }
+    
+    // In-memory fallback
+    const memoryTemplate = {
+      ...template,
+      id: `${guildId}-${Date.now()}`,
+      createdAt: template.createdAt.toISOString(),
+      updatedAt: template.updatedAt.toISOString()
     };
     
     if (!this.templates.has(guildId)) {
@@ -31,9 +58,9 @@ class EmbedManager {
     }
     
     const guildTemplates = this.templates.get(guildId);
-    guildTemplates.set(name, template);
+    guildTemplates.set(name, memoryTemplate);
     
-    return template;
+    return memoryTemplate;
   }
 
   /**
@@ -42,7 +69,24 @@ class EmbedManager {
    * @param {string} name - The template name
    * @returns {Object|null} The template or null
    */
-  getTemplate(guildId, name) {
+  async getTemplate(guildId, name) {
+    if (this.useDatabase) {
+      try {
+        const [result] = await db
+          .select()
+          .from(embedTemplates)
+          .where(and(
+            eq(embedTemplates.guildId, guildId),
+            eq(embedTemplates.name, name)
+          ));
+        return result || null;
+      } catch (error) {
+        console.error('Error getting template from database:', error);
+        // Fall back to in-memory storage
+      }
+    }
+    
+    // In-memory fallback
     const guildTemplates = this.templates.get(guildId);
     if (!guildTemplates) return null;
     
@@ -55,7 +99,23 @@ class EmbedManager {
    * @param {string} name - The template name
    * @returns {boolean} Whether the template was deleted
    */
-  deleteTemplate(guildId, name) {
+  async deleteTemplate(guildId, name) {
+    if (this.useDatabase) {
+      try {
+        const result = await db
+          .delete(embedTemplates)
+          .where(and(
+            eq(embedTemplates.guildId, guildId),
+            eq(embedTemplates.name, name)
+          ));
+        return result.rowCount > 0;
+      } catch (error) {
+        console.error('Error deleting template from database:', error);
+        // Fall back to in-memory storage
+      }
+    }
+    
+    // In-memory fallback
     const guildTemplates = this.templates.get(guildId);
     if (!guildTemplates) return false;
     
@@ -67,7 +127,21 @@ class EmbedManager {
    * @param {string} guildId - The guild ID
    * @returns {Array} The templates
    */
-  getAllTemplates(guildId) {
+  async getAllTemplates(guildId) {
+    if (this.useDatabase) {
+      try {
+        const results = await db
+          .select()
+          .from(embedTemplates)
+          .where(eq(embedTemplates.guildId, guildId));
+        return results;
+      } catch (error) {
+        console.error('Error getting templates from database:', error);
+        // Fall back to in-memory storage
+      }
+    }
+    
+    // In-memory fallback
     const guildTemplates = this.templates.get(guildId);
     if (!guildTemplates) return [];
     
@@ -83,19 +157,36 @@ class EmbedManager {
    * @param {string} createdBy - The user ID who created the embed
    * @returns {Object} The stored embed
    */
-  storeSentEmbed(messageId, channelId, guildId, embedData, createdBy) {
+  async storeSentEmbed(messageId, channelId, guildId, embedData, createdBy) {
     const storedEmbed = {
       messageId,
       channelId,
       guildId,
       embedData,
       createdBy,
-      createdAt: new Date().toISOString(),
-      lastUpdated: new Date().toISOString()
+      createdAt: new Date(),
+      updatedAt: new Date()
     };
     
-    this.sentEmbeds.set(messageId, storedEmbed);
-    return storedEmbed;
+    if (this.useDatabase) {
+      try {
+        const [result] = await db.insert(sentEmbeds).values(storedEmbed).returning();
+        return result;
+      } catch (error) {
+        console.error('Error storing sent embed in database:', error);
+        // Fall back to in-memory storage
+      }
+    }
+    
+    // In-memory fallback
+    const memoryEmbed = {
+      ...storedEmbed,
+      createdAt: storedEmbed.createdAt.toISOString(),
+      updatedAt: storedEmbed.updatedAt.toISOString()
+    };
+    
+    this.sentEmbeds.set(messageId, memoryEmbed);
+    return memoryEmbed;
   }
 
   /**
@@ -103,7 +194,21 @@ class EmbedManager {
    * @param {string} messageId - The message ID
    * @returns {Object|null} The embed or null
    */
-  getSentEmbed(messageId) {
+  async getSentEmbed(messageId) {
+    if (this.useDatabase) {
+      try {
+        const [result] = await db
+          .select()
+          .from(sentEmbeds)
+          .where(eq(sentEmbeds.messageId, messageId));
+        return result || null;
+      } catch (error) {
+        console.error('Error getting sent embed from database:', error);
+        // Fall back to in-memory storage
+      }
+    }
+    
+    // In-memory fallback
     return this.sentEmbeds.get(messageId) || null;
   }
 
@@ -114,12 +219,39 @@ class EmbedManager {
    * @param {string} updatedBy - The user ID who updated the embed
    * @returns {Object|null} The updated embed or null
    */
-  updateSentEmbed(messageId, embedData, updatedBy) {
-    const storedEmbed = this.getSentEmbed(messageId);
+  async updateSentEmbed(messageId, embedData, updatedBy) {
+    if (this.useDatabase) {
+      try {
+        const [storedEmbed] = await db
+          .select()
+          .from(sentEmbeds)
+          .where(eq(sentEmbeds.messageId, messageId));
+          
+        if (!storedEmbed) return null;
+        
+        const [updatedEmbed] = await db
+          .update(sentEmbeds)
+          .set({
+            embedData: embedData,
+            updatedAt: new Date(),
+            updatedBy: updatedBy
+          })
+          .where(eq(sentEmbeds.messageId, messageId))
+          .returning();
+          
+        return updatedEmbed;
+      } catch (error) {
+        console.error('Error updating sent embed in database:', error);
+        // Fall back to in-memory storage
+      }
+    }
+    
+    // In-memory fallback
+    const storedEmbed = this.sentEmbeds.get(messageId);
     if (!storedEmbed) return null;
     
     storedEmbed.embedData = embedData;
-    storedEmbed.lastUpdated = new Date().toISOString();
+    storedEmbed.updatedAt = new Date().toISOString();
     storedEmbed.updatedBy = updatedBy;
     
     this.sentEmbeds.set(messageId, storedEmbed);
@@ -131,7 +263,20 @@ class EmbedManager {
    * @param {string} messageId - The message ID
    * @returns {boolean} Whether the embed was deleted
    */
-  deleteSentEmbed(messageId) {
+  async deleteSentEmbed(messageId) {
+    if (this.useDatabase) {
+      try {
+        const result = await db
+          .delete(sentEmbeds)
+          .where(eq(sentEmbeds.messageId, messageId));
+        return result.rowCount > 0;
+      } catch (error) {
+        console.error('Error deleting sent embed from database:', error);
+        // Fall back to in-memory storage
+      }
+    }
+    
+    // In-memory fallback
     return this.sentEmbeds.delete(messageId);
   }
 
